@@ -30,47 +30,6 @@ Built for homelabbers who run a reverse proxy at the edge of their network and w
 
 ---
 
-## Architecture
-
-HawkEYE is designed to run on an **edge VPS** that acts as the gateway to your network — typically running a reverse proxy (Caddy) in front of your homelab services.
-
-```
-Internet
-    │
-    ▼
-┌─────────────────────────────┐
-│  Edge VPS                   │
-│  ┌─────────┐                │
-│  │  Caddy  │ ← writes JSON  │
-│  │ (native)│   access logs  │
-│  └────┬────┘                │
-│       │ /var/log/caddy/     │
-│       │ access.log          │
-│  ┌────▼──────────────────┐  │
-│  │  HawkEYE (Docker)     │  │
-│  │  ┌────────┐ ┌───────┐ │  │
-│  │  │backend │ │nginx  │ │  │
-│  │  │Node.js │ │(front)│ │  │
-│  │  └────────┘ └───────┘ │  │
-│  └───────────────────────┘  │
-│  ┌──────────┐               │
-│  │ Fail2Ban │ ← socket      │
-│  │ (native) │   mounted     │
-│  └──────────┘               │
-└─────────────────────────────┘
-    │
-    │ WireGuard / private tunnel
-    ▼
-┌─────────────────┐
-│  Home Server(s) │
-│  Jellyfin, etc. │
-└─────────────────┘
-```
-
-Caddy writes structured JSON access logs. The HawkEYE backend tails these logs, performs GeoIP lookups, and streams events to the frontend over WebSocket. Fail2Ban's Unix socket is mounted into the backend container so jail status can be queried directly.
-
----
-
 ## Prerequisites
 
 - A VPS or server running **Caddy** as a reverse proxy (native install)
