@@ -1,0 +1,14 @@
+{
+  "name": "hawkeye-backend",
+  "version": "1.0.0",
+  "description": "HawkEYE backend — parses Caddy access logs and serves geo IP data via WebSocket",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "geoip-lite": "^1.4.10",
+    "ws": "^8.17.0"
+  }
+}

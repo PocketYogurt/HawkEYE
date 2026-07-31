@@ -1,0 +1,206 @@
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HawkEYE — Traffic Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+<style>
+:root{--bg:#040a0f;--panel:rgba(4,12,20,0.92);--border:rgba(0,255,170,0.15);--accent:#00ffaa;--accent2:#00c8ff;--warn:#ff6b35;--red:#ff3366;--text:#c8e6d4;--muted:rgba(200,230,212,0.4);--glow:0 0 20px rgba(0,255,170,0.3);--panel-w:240px;--feed-w:260px;--scanline:rgba(0,255,170,0.018);--server-dot:#00ffaa;--corner-op:0.5;}
+body.light{--bg:#f0f4f8;--panel:rgba(255,255,255,0.93);--border:rgba(0,100,220,0.18);--accent:#0057d9;--accent2:#00a8cc;--warn:#e05a00;--red:#d4003b;--text:#1a2a3a;--muted:rgba(30,60,100,0.45);--glow:0 0 20px rgba(0,87,217,0.25);--scanline:rgba(0,87,217,0.012);--server-dot:#0057d9;--corner-op:0.3;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;height:100dvh;overflow:hidden;transition:background 0.4s ease,opacity 0.3s ease;}
+#map{position:absolute;inset:0;width:100%;height:100%;}
+.hud{position:absolute;inset:0;pointer-events:none;z-index:10;}
+.hud::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,var(--scanline) 2px,var(--scanline) 4px);pointer-events:none;z-index:100;}
+#theme-toggle{position:absolute;top:14px;right:56px;z-index:30;background:var(--panel);border:1px solid var(--border);border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;backdrop-filter:blur(12px);transition:all 0.3s ease;pointer-events:auto;user-select:none;}
+#theme-toggle:hover{border-color:var(--accent);box-shadow:var(--glow);}
+@media(max-width:900px){#theme-toggle{top:14px;right:14px;}}
+.corner{position:absolute;width:28px;height:28px;border-color:var(--accent);border-style:solid;opacity:var(--corner-op);}
+.corner-tl{top:12px;left:12px;border-width:2px 0 0 2px;}.corner-tr{top:12px;right:12px;border-width:2px 2px 0 0;}.corner-bl{bottom:12px;left:12px;border-width:0 0 2px 2px;}.corner-br{bottom:12px;right:12px;border-width:0 2px 2px 0;}
+.header{position:absolute;top:16px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;white-space:nowrap;}
+.header h1{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(16px,4vw,22px);letter-spacing:0.25em;color:var(--accent);text-shadow:var(--glow);}
+.header .subtitle{font-size:9px;color:var(--muted);letter-spacing:0.15em;margin-top:2px;}
+.live-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,255,170,0.08);border:1px solid var(--border);border-radius:2px;padding:3px 8px;margin-top:5px;font-size:9px;letter-spacing:0.1em;color:var(--muted);}
+body.light .live-badge{background:rgba(0,87,217,0.06);}
+.pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.5s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.3;transform:scale(0.7)}}
+.nav{position:absolute;top:108px;left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto;white-space:nowrap;z-index:20;}
+.nav-btn{background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);padding:6px 16px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.15em;color:var(--muted);text-decoration:none;text-transform:uppercase;transition:all 0.2s;}
+.nav-btn:hover,.nav-btn.active{border-color:var(--accent);color:var(--accent);box-shadow:var(--glow);}
+.panel-left{position:absolute;top:148px;left:16px;width:var(--panel-w);pointer-events:auto;}
+.panel-right{position:absolute;top:148px;right:16px;width:var(--feed-w);pointer-events:auto;}
+.stat-block{background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);padding:12px 14px;margin-bottom:8px;position:relative;}
+.stat-block::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--accent);opacity:0.7;}
+.stat-label{font-size:9px;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;}
+.stat-value{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent);text-shadow:var(--glow);line-height:1;}
+.stat-sub{font-size:9px;color:var(--muted);margin-top:3px;}
+.stats-row{display:flex;gap:8px;}.stats-row .stat-block{flex:1;}.stats-row .stat-value{font-size:18px;}
+.countries{background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);padding:12px 14px;margin-bottom:8px;}
+.countries-title{font-size:9px;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.country-row{display:flex;align-items:center;gap:8px;padding:3px 0;}
+.country-bar-bg{flex:1;height:3px;background:rgba(128,128,128,0.12);}
+.country-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width 0.5s ease;}
+.country-name{width:30px;font-size:10px;color:var(--text);}.country-count{font-size:10px;color:var(--accent);min-width:22px;text-align:right;}
+.legend{background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);padding:12px 14px;}
+.legend-title{font-size:9px;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.legend-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:10px;color:var(--text);}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}.legend-line{width:24px;height:2px;flex-shrink:0;border-radius:1px;}
+.feed{background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);height:380px;overflow:hidden;margin-bottom:8px;}
+.feed-header{padding:9px 14px;border-bottom:1px solid var(--border);font-size:9px;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;}
+.feed-list{height:calc(100% - 34px);overflow-y:auto;position:relative;scrollbar-width:none;-ms-overflow-style:none;}
+.feed-list::-webkit-scrollbar{display:none;}
+.feed-item{padding:7px 14px;border-bottom:1px solid var(--border);animation:slideIn 0.3s ease;}
+@keyframes slideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+.fi-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;}
+.fi-ip{color:var(--accent);font-size:11px;}.fi-status{font-size:10px;padding:1px 5px;border-radius:1px;}
+.status-2xx{color:var(--accent);border:1px solid var(--accent);opacity:0.8;}.status-3xx{color:var(--accent2);border:1px solid var(--accent2);opacity:0.8;}.status-4xx{color:var(--warn);border:1px solid var(--warn);opacity:0.8;}.status-5xx{color:var(--red);border:1px solid var(--red);opacity:0.8;}
+.fi-loc{font-size:10px;color:var(--muted);}.fi-uri{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;opacity:0.7;}
+.bottom-bar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:2px;pointer-events:none;}
+.bottom-seg{background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);padding:7px 14px;font-size:10px;color:var(--muted);letter-spacing:0.1em;white-space:nowrap;}
+.bottom-seg span{color:var(--accent);}
+#conn-status{position:absolute;bottom:50px;right:16px;font-size:9px;color:var(--muted);letter-spacing:0.1em;pointer-events:none;}
+.tooltip{position:absolute;background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);padding:10px 14px;pointer-events:none;z-index:20;font-size:11px;min-width:160px;display:none;box-shadow:0 4px 20px rgba(0,0,0,0.2);}
+.tooltip.show{display:block;}.t-ip{color:var(--accent);font-size:12px;margin-bottom:4px;}.t-loc{color:var(--text);}.t-uri{color:var(--muted);margin-top:3px;}
+#arc-canvas{position:absolute;inset:0;pointer-events:none;z-index:5;}
+.mobile-tabs{display:none;position:absolute;bottom:0;left:0;right:0;z-index:20;pointer-events:auto;}
+.tab-bar{display:flex;background:var(--panel);border-top:1px solid var(--border);backdrop-filter:blur(16px);}
+.tab-btn{flex:1;padding:10px 4px;text-align:center;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.1em;color:var(--muted);background:none;border:none;cursor:pointer;text-transform:uppercase;border-top:2px solid transparent;}
+.tab-btn.active{color:var(--accent);border-top-color:var(--accent);}
+.tab-panel{background:var(--panel);border-top:1px solid var(--border);backdrop-filter:blur(16px);max-height:45dvh;overflow-y:auto;display:none;padding:12px;}
+.tab-panel.active{display:block;}
+.mobile-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.mobile-stat{background:rgba(128,128,128,0.06);border:1px solid var(--border);padding:10px 12px;position:relative;}
+.mobile-stat::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--accent);opacity:0.7;}
+.mobile-feed-item{padding:8px 0;border-bottom:1px solid var(--border);}
+.maplibregl-ctrl-bottom-right,.maplibregl-ctrl-bottom-left,.maplibregl-ctrl-top-right,.maplibregl-ctrl-top-left{display:none !important;}
+@media(max-width:900px){.panel-left,.panel-right,.bottom-bar,#conn-status,.corner,.nav{display:none;}.mobile-tabs{display:block;}.header{top:12px;}}
+@media(min-width:901px) and (max-width:1200px){:root{--panel-w:200px;--feed-w:210px;}.feed{height:300px;}.stat-value{font-size:22px !important;}}
+</style>
+</head>
+<body style="opacity:0">
+<div id="map"></div>
+<canvas id="arc-canvas"></canvas>
+<button id="theme-toggle" title="Toggle light/dark mode">&#127769;</button>
+<div class="hud">
+  <div class="corner corner-tl"></div><div class="corner corner-tr"></div><div class="corner corner-bl"></div><div class="corner corner-br"></div>
+  <div class="header"><h1>HawkEYE</h1><div class="subtitle">LIVE TRAFFIC INTELLIGENCE</div><div class="live-badge"><div class="pulse-dot"></div>MONITORING ACTIVE</div></div>
+  <nav class="nav">
+    <a href="/" class="nav-btn active" onclick="navigate(event,this)">⬡ Traffic Map</a>
+    <a href="/fail2ban.html" class="nav-btn" onclick="navigate(event,this)">🛡 Threat Shield</a>
+  </nav>
+  <div class="panel-left">
+    <div class="stat-block"><div class="stat-label">Total Requests</div><div class="stat-value" id="stat-total">0</div><div class="stat-sub">since monitor start</div></div>
+    <div class="stats-row"><div class="stat-block"><div class="stat-label">Unique IPs</div><div class="stat-value" id="stat-ips">0</div></div><div class="stat-block"><div class="stat-label">Countries</div><div class="stat-value" id="stat-countries">0</div></div></div>
+    <div class="countries"><div class="countries-title">Top Origins</div><div id="country-list"></div></div>
+    <div class="legend">
+      <div class="legend-title">Arc Legend</div>
+      <div class="legend-row"><div class="legend-line" style="background:var(--accent)"></div>2xx Success</div>
+      <div class="legend-row"><div class="legend-line" style="background:var(--accent2)"></div>3xx Redirect</div>
+      <div class="legend-row"><div class="legend-line" style="background:var(--warn)"></div>4xx Client Error</div>
+      <div class="legend-row"><div class="legend-line" style="background:var(--red)"></div>5xx Server Error</div>
+      <div style="border-top:1px solid var(--border);margin:8px 0"></div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--accent);opacity:0.6;border:1px solid var(--accent)"></div>Visitor location</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--accent);box-shadow:0 0 6px var(--accent)"></div>Your server</div>
+    </div>
+  </div>
+  <div class="panel-right">
+    <div class="feed"><div class="feed-header">Live Request Feed</div><div class="feed-list" id="feed-list"></div></div>
+  </div>
+  <div class="bottom-bar">
+    <div class="bottom-seg">SERVER <span id="server-loc">&#8212;</span></div>
+    <div class="bottom-seg">RPS <span id="stat-rps">0.0</span></div>
+    <div class="bottom-seg">UPTIME <span id="stat-uptime">&#8212;</span></div>
+  </div>
+</div>
+<div id="conn-status">CONNECTING&#8230;</div>
+<div class="mobile-tabs">
+  <div id="mobile-drawer" class="tab-panel active">
+    <div class="mobile-stats">
+      <div class="mobile-stat"><div class="stat-label">Requests</div><div class="stat-value" style="font-size:22px" id="m-stat-total">0</div></div>
+      <div class="mobile-stat"><div class="stat-label">Unique IPs</div><div class="stat-value" style="font-size:22px" id="m-stat-ips">0</div></div>
+      <div class="mobile-stat"><div class="stat-label">Countries</div><div class="stat-value" style="font-size:22px" id="m-stat-countries">0</div></div>
+      <div class="mobile-stat"><div class="stat-label">RPS</div><div class="stat-value" style="font-size:22px" id="m-stat-rps">0.0</div></div>
+    </div>
+    <div style="background:rgba(128,128,128,0.05);border:1px solid var(--border);padding:10px 12px;margin-bottom:10px">
+      <div class="countries-title">Arc Colours</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div class="legend-row"><div class="legend-line" style="background:var(--accent)"></div>2xx OK</div>
+        <div class="legend-row"><div class="legend-line" style="background:var(--accent2)"></div>3xx Redirect</div>
+        <div class="legend-row"><div class="legend-line" style="background:var(--warn)"></div>4xx Error</div>
+        <div class="legend-row"><div class="legend-line" style="background:var(--red)"></div>5xx Fault</div>
+      </div>
+    </div>
+    <div class="countries-title">Recent Requests</div>
+    <div id="m-feed-list"></div>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" id="drawer-btn" onclick="toggleDrawer()">&#9650; Stats &amp; Feed</button>
+    <div style="flex:2;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted);letter-spacing:0.1em" id="m-conn-status">CONNECTING&#8230;</div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:flex-end;padding-right:12px;font-size:9px;color:var(--muted)" id="m-server-loc">&#8212;</div>
+  </div>
+</div>
+<div class="tooltip" id="tooltip"><div class="t-ip" id="t-ip"></div><div class="t-loc" id="t-loc"></div><div class="t-uri" id="t-uri"></div></div>
+<script>
+requestAnimationFrame(()=>requestAnimationFrame(()=>{document.body.style.opacity=1;}));
+function navigate(e,el){e.preventDefault();document.body.style.opacity=0;setTimeout(()=>window.location.href=el.href,300);}
+const WS_URL=(window.location.protocol==='https:'?'wss://':'ws://')+window.location.host+'/ws';
+const API_URL=window.location.origin+'/api/stats';
+let isLight=localStorage.getItem('nw-theme')==='light';
+let gdprMode=true; // default until fetched from backend
+function applyTheme(){document.body.classList.toggle('light',isLight);document.getElementById('theme-toggle').textContent=isLight?'\🌙':'\☀️';applyMapFilters();}
+document.getElementById('theme-toggle').addEventListener('click',()=>{isLight=!isLight;localStorage.setItem('nw-theme',isLight?'light':'dark');applyTheme();});
+document.body.classList.toggle('light',isLight);
+document.getElementById('theme-toggle').textContent=isLight?'🌙':'☀️';
+const DARK_TILES='https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+const LIGHT_TILES='https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+const map=new maplibregl.Map({container:'map',style:{version:8,sources:{tiles:{type:'raster',tiles:[isLight?LIGHT_TILES:DARK_TILES],tileSize:256}},layers:[{id:'tiles',type:'raster',source:'tiles',paint:{'raster-opacity':0.9}}]},center:[10,30],zoom:1.8,minZoom:1,maxZoom:10,attributionControl:false});
+map.on('load',()=>applyMapFilters());
+function applyMapFilters(){if(!map.getLayer('tiles'))return;if(isLight){map.setPaintProperty('tiles','raster-hue-rotate',200);map.setPaintProperty('tiles','raster-brightness-max',0.9);map.setPaintProperty('tiles','raster-brightness-min',0.1);map.setPaintProperty('tiles','raster-saturation',-0.2);map.setPaintProperty('tiles','raster-contrast',0.05);map.setPaintProperty('tiles','raster-opacity',0.95);}else{map.setPaintProperty('tiles','raster-hue-rotate',160);map.setPaintProperty('tiles','raster-brightness-max',0.45);map.setPaintProperty('tiles','raster-brightness-min',0);map.setPaintProperty('tiles','raster-saturation',-0.4);map.setPaintProperty('tiles','raster-contrast',0.15);map.setPaintProperty('tiles','raster-opacity',0.8);}}
+const canvas=document.getElementById('arc-canvas');
+const ctx=canvas.getContext('2d');
+function resizeCanvas(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+resizeCanvas();window.addEventListener('resize',resizeCanvas);
+let serverPos={lat:51.5074,lon:-0.1278};
+let activeArcs=[];
+function latLonToPixel(lat,lon){const p=map.project([lon,lat]);return{x:p.x,y:p.y};}
+function isValidCoord(lat,lon){return lat&&lon&&!(lat===0&&lon===0)&&Math.abs(lat)<=90&&Math.abs(lon)<=180;}
+function getServerDotColor(){return isLight?'0,87,217':'0,255,170';}
+function drawCurvedArc(x1,y1,x2,y2,progress,alpha,color){const mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);if(len<1)return;const curve=Math.min(len*0.35,180),cx=mx-dy/len*curve,cy=my+dx/len*curve;ctx.beginPath();ctx.strokeStyle='rgba('+color+','+alpha*0.2+')';ctx.lineWidth=1.2;const steps=60,endStep=Math.floor(progress*steps);for(let i=0;i<=endStep;i++){const t=i/steps;const px=(1-t)*(1-t)*x1+2*(1-t)*t*cx+t*t*x2;const py=(1-t)*(1-t)*y1+2*(1-t)*t*cy+t*t*y2;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.stroke();if(progress<1){const t=progress;const px=(1-t)*(1-t)*x1+2*(1-t)*t*cx+t*t*x2;const py=(1-t)*(1-t)*y1+2*(1-t)*t*cy+t*t*y2;const g=ctx.createRadialGradient(px,py,0,px,py,5);g.addColorStop(0,'rgba('+color+','+alpha+')');g.addColorStop(1,'rgba(0,0,0,0)');ctx.beginPath();ctx.fillStyle=g;ctx.arc(px,py,5,0,Math.PI*2);ctx.fill();}if(progress>0.9){const fade=(progress-0.9)/0.1;const srv=latLonToPixel(serverPos.lat,serverPos.lon);ctx.beginPath();ctx.strokeStyle='rgba('+color+','+(alpha*(1-fade)*0.7)+')';ctx.lineWidth=1.5;ctx.arc(srv.x,srv.y,fade*22+3,0,Math.PI*2);ctx.stroke();}}
+function drawArcs(ts){ctx.clearRect(0,0,canvas.width,canvas.height);const srv=latLonToPixel(serverPos.lat,serverPos.lon);const pulse=(Math.sin(ts/600)+1)/2;const dc=getServerDotColor();const g=ctx.createRadialGradient(srv.x,srv.y,0,srv.x,srv.y,20+pulse*6);g.addColorStop(0,'rgba('+dc+',0.9)');g.addColorStop(0.3,'rgba('+dc+',0.4)');g.addColorStop(1,'rgba('+dc+',0)');ctx.beginPath();ctx.fillStyle=g;ctx.arc(srv.x,srv.y,20+pulse*6,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.fillStyle=isLight?'#0057d9':'#00ffaa';ctx.arc(srv.x,srv.y,4,0,Math.PI*2);ctx.fill();activeArcs=activeArcs.filter(arc=>{const elapsed=(ts-arc.startTime)/1000;if(elapsed>arc.duration+0.5)return false;const progress=Math.min(elapsed/arc.duration,1);const alpha=elapsed>arc.duration?Math.max(0,1-(elapsed-arc.duration)/0.5):1;const src=latLonToPixel(arc.lat,arc.lon);drawCurvedArc(src.x,src.y,srv.x,srv.y,progress,alpha*0.85,arc.color);if(progress<0.15){ctx.beginPath();ctx.fillStyle='rgba('+arc.color+','+alpha*0.6+')';ctx.arc(src.x,src.y,3,0,Math.PI*2);ctx.fill();}return true;});requestAnimationFrame(drawArcs);}
+requestAnimationFrame(drawArcs);
+function getArcColor(s){if(!s||s<300)return isLight?'0,87,217':'0,255,170';if(s<400)return isLight?'0,168,204':'0,200,255';if(s<500)return'255,107,53';return'220,0,59';}
+function addArc(e){if(!isValidCoord(e.lat,e.lon))return;const dist=Math.sqrt(Math.pow(e.lat-serverPos.lat,2)+Math.pow(e.lon-serverPos.lon,2));activeArcs.push({lat:e.lat,lon:e.lon,startTime:performance.now(),duration:1.5+dist*0.008,color:getArcColor(e.status)});}
+const markers=new Map();
+function addOrUpdateMarker(event){if(!isValidCoord(event.lat,event.lon))return;const key=event.lat.toFixed(2)+','+event.lon.toFixed(2);if(markers.has(key)){const m=markers.get(key);m.count++;m.el.style.transform='scale('+Math.min(1+m.count*0.1,2)+')';return;}const el=document.createElement('div');const mc=isLight?'rgba(0,87,217,0.6)':'rgba(0,255,170,0.6)';const mb=isLight?'rgba(0,87,217,0.9)':'rgba(0,255,170,0.9)';const ms=isLight?'0 0 8px rgba(0,87,217,0.4)':'0 0 8px rgba(0,255,170,0.4)';el.style.cssText='width:8px;height:8px;background:'+mc+';border:1px solid '+mb+';border-radius:50%;cursor:pointer;transition:transform 0.2s;box-shadow:'+ms+';';const tooltip=document.getElementById('tooltip');const showTip=(x,y)=>{
+  if(!gdprMode)document.getElementById('t-ip').textContent=event.ip;
+  document.getElementById('t-loc').textContent=(event.city||'')+(event.city?', ':'')+event.country;
+  document.getElementById('t-uri').textContent=(event.method||'GET')+' '+(event.uri||'/').slice(0,30);
+  tooltip.style.left=(x+12)+'px';tooltip.style.top=(y-10)+'px';tooltip.classList.add('show');
+};el.addEventListener('mouseenter',(e)=>showTip(e.clientX,e.clientY));el.addEventListener('mouseleave',()=>tooltip.classList.remove('show'));el.addEventListener('touchstart',(e)=>{e.stopPropagation();const t=e.touches[0];showTip(t.clientX,t.clientY-70);setTimeout(()=>tooltip.classList.remove('show'),2500);});new maplibregl.Marker({element:el}).setLngLat([event.lon,event.lat]).addTo(map);markers.set(key,{el,count:1});if(markers.size>300){const first=markers.keys().next().value;markers.delete(first);}}
+const feedList=document.getElementById('feed-list');
+const mFeedList=document.getElementById('m-feed-list');
+function addFeedItem(event){const sc=!event.status?'status-2xx':event.status<300?'status-2xx':event.status<400?'status-3xx':event.status<500?'status-4xx':'status-5xx';
+  const ipHtml=gdprMode?'':'<span class="fi-ip">'+event.ip+'</span>';
+  const html='<div class="fi-top">'+ipHtml+'<span class="fi-status '+sc+'">'+(event.status||200)+'</span></div><div class="fi-loc">'+event.country+(event.city?' &middot; '+event.city:'')+'</div><div class="fi-uri">'+(event.method||'GET')+' '+(event.uri||'/').slice(0,28)+'</div>';
+  const d=document.createElement('div');d.className='feed-item';d.innerHTML=html;feedList.prepend(d);while(feedList.children.length>40)feedList.lastChild.remove();const dm=document.createElement('div');dm.className='mobile-feed-item';dm.innerHTML=html;mFeedList.prepend(dm);while(mFeedList.children.length>20)mFeedList.lastChild.remove();}
+const countryData={};
+function updateStats(total,uniqueIPs,topCountries){const c=Object.keys(countryData).length;['stat-total','m-stat-total'].forEach(id=>document.getElementById(id).textContent=total.toLocaleString());['stat-ips','m-stat-ips'].forEach(id=>document.getElementById(id).textContent=uniqueIPs.toLocaleString());['stat-countries','m-stat-countries'].forEach(id=>document.getElementById(id).textContent=c);if(topCountries&&topCountries.length){const max=topCountries[0].count;document.getElementById('country-list').innerHTML=topCountries.slice(0,8).map(c=>'<div class="country-row"><span class="country-name">'+c.country+'</span><div class="country-bar-bg"><div class="country-bar" style="width:'+(c.count/max*100).toFixed(0)+'%"></div></div><span class="country-count">'+c.count+'</span></div>').join('');}}
+let requestTimes=[];
+function trackRPS(){const now=Date.now();requestTimes=requestTimes.filter(t=>now-t<60000);const rps=(requestTimes.length/60).toFixed(2);['stat-rps','m-stat-rps'].forEach(id=>document.getElementById(id).textContent=rps);}
+setInterval(trackRPS,2000);
+function formatUptime(s){if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';}
+let ws,reconnectTimer;
+function setConnStatus(msg,color){['conn-status','m-conn-status'].forEach(id=>{document.getElementById(id).textContent=msg;document.getElementById(id).style.color=color;});}
+function setServerLoc(city){['server-loc','m-server-loc'].forEach(id=>document.getElementById(id).textContent=city);}
+function processEvent(event){addArc(event);addOrUpdateMarker(event);addFeedItem(event);if(event.country)countryData[event.country]=true;requestTimes.push(Date.now());}
+let drawerOpen=true;
+function toggleDrawer(){drawerOpen=!drawerOpen;document.getElementById('mobile-drawer').classList.toggle('active',drawerOpen);document.getElementById('drawer-btn').textContent=drawerOpen?'\▼ Hide':'\▲ Stats & Feed';}
+function connect(){if(ws&&ws.readyState<2)ws.close();ws=new WebSocket(WS_URL);ws.onopen=()=>{setConnStatus('CONNECTED','var(--accent)');clearTimeout(reconnectTimer);};ws.onclose=()=>{setConnStatus('RECONNECTING\u2026','var(--warn)');reconnectTimer=setTimeout(connect,3000);};ws.onerror=()=>ws.close();ws.onmessage=(e)=>{const msg=JSON.parse(e.data);if(msg.type==='init'){if(msg.gdprMode!==undefined)gdprMode=msg.gdprMode;if(msg.server){serverPos={lat:msg.server.lat,lon:msg.server.lon};setServerLoc(msg.server.city);}if(msg.recentEvents)msg.recentEvents.slice(0,30).reverse().forEach(processEvent);updateStats(msg.stats&&msg.stats.totalRequests||0,msg.stats&&msg.stats.uniqueIPs||0,[]);}if(msg.type==='hit')processEvent(msg.event);};}
+async function fetchStats(){try{const data=await(await fetch(API_URL,{headers:{"X-Netwatch-Client":"1"}})).json();if(data.gdprMode!==undefined)gdprMode=data.gdprMode;updateStats(data.totalRequests,data.uniqueIPs,data.topCountries);document.getElementById('stat-uptime').textContent=formatUptime(data.uptime);if(data.server){serverPos={lat:data.server.lat,lon:data.server.lon};setServerLoc(data.server.city);}}catch(e){}}
+fetchStats();setInterval(fetchStats,10000);connect();
+</script>
+</body>
+</html>

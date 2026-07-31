@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HawkEYE — Threat Shield</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#040a0f;--panel:rgba(4,12,20,0.92);--border:rgba(0,255,170,0.15);--accent:#00ffaa;--accent2:#00c8ff;--warn:#ff6b35;--red:#ff3366;--text:#c8e6d4;--muted:rgba(200,230,212,0.4);--glow:0 0 20px rgba(0,255,170,0.3);--scanline:rgba(0,255,170,0.018);}
+body.light{--bg:#f0f4f8;--panel:rgba(255,255,255,0.93);--border:rgba(0,100,220,0.18);--accent:#0057d9;--accent2:#00a8cc;--warn:#e05a00;--red:#d4003b;--text:#1a2a3a;--muted:rgba(30,60,100,0.45);--glow:0 0 20px rgba(0,87,217,0.25);--scanline:rgba(0,87,217,0.012);}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;min-height:100dvh;transition:background 0.4s ease,opacity 0.3s ease;}
+.scanlines{position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,var(--scanline) 2px,var(--scanline) 4px);pointer-events:none;z-index:100;}
+.corner{position:fixed;width:28px;height:28px;border-color:var(--accent);border-style:solid;opacity:0.5;}
+.corner-tl{top:12px;left:12px;border-width:2px 0 0 2px;}.corner-tr{top:12px;right:12px;border-width:2px 2px 0 0;}.corner-bl{bottom:12px;left:12px;border-width:0 0 2px 2px;}.corner-br{bottom:12px;right:12px;border-width:0 2px 2px 0;}
+#theme-toggle{position:fixed;top:14px;right:56px;z-index:30;background:var(--panel);border:1px solid var(--border);border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;backdrop-filter:blur(12px);transition:all 0.3s ease;user-select:none;}
+#theme-toggle:hover{border-color:var(--accent);box-shadow:var(--glow);}
+.header{text-align:center;padding:24px 16px 8px;pointer-events:none;}
+.header h1{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(16px,4vw,22px);letter-spacing:0.25em;color:var(--accent);text-shadow:var(--glow);}
+.header .subtitle{font-size:9px;color:var(--muted);letter-spacing:0.15em;margin-top:2px;}
+.live-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,255,170,0.08);border:1px solid var(--border);border-radius:2px;padding:3px 8px;margin-top:5px;font-size:9px;letter-spacing:0.1em;color:var(--muted);}
+body.light .live-badge{background:rgba(0,87,217,0.06);}
+.pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--red);animation:pulse 1.5s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.3;transform:scale(0.7)}}
+nav{display:flex;justify-content:center;gap:8px;padding:12px 16px;}
+.nav-btn{background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);padding:6px 16px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.15em;color:var(--muted);cursor:pointer;text-decoration:none;text-transform:uppercase;transition:all 0.2s;}
+.nav-btn:hover,.nav-btn.active{border-color:var(--accent);color:var(--accent);box-shadow:var(--glow);}
+.container{max-width:1100px;margin:0 auto;padding:0 16px 60px;}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;}
+@media(max-width:700px){.summary-grid{grid-template-columns:repeat(2,1fr);}}
+.stat-block{background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);padding:12px 14px;position:relative;}
+.stat-block::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--accent);opacity:0.7;}
+.stat-block.red::before{background:var(--red);}
+.stat-block.warn::before{background:var(--warn);}
+.stat-block.blue::before{background:var(--accent2);}
+.stat-label{font-size:9px;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;}
+.stat-value{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent);text-shadow:var(--glow);line-height:1;}
+.stat-block.red .stat-value{color:var(--red);text-shadow:0 0 20px rgba(255,51,102,0.3);}
+.stat-block.warn .stat-value{color:var(--warn);}
+.stat-block.blue .stat-value{color:var(--accent2);}
+.stat-sub{font-size:9px;color:var(--muted);margin-top:3px;}
+.section-title{font-size:9px;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:12px;}
+.jail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;margin-bottom:16px;}
+.jail-card{background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);padding:14px;}
+.jail-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.jail-name{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--accent);letter-spacing:0.1em;}
+.jail-badge{font-size:9px;padding:2px 8px;border:1px solid var(--red);color:var(--red);letter-spacing:0.1em;}
+.jail-badge.safe{border-color:var(--accent);color:var(--accent);}
+.jail-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+.jail-stat{background:rgba(128,128,128,0.06);padding:6px 10px;}
+.jail-stat-label{font-size:9px;color:var(--muted);margin-bottom:2px;}
+.jail-stat-value{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);}
+.jail-stat-value.red{color:var(--red);}
+.ip-list{margin-top:8px;}
+.ip-list-title{font-size:9px;color:var(--muted);letter-spacing:0.1em;margin-bottom:6px;}
+.ip-tag{display:inline-block;background:rgba(255,51,102,0.08);border:1px solid rgba(255,51,102,0.25);color:var(--red);font-size:10px;padding:2px 8px;margin:2px;letter-spacing:0.05em;}
+.no-bans{font-size:10px;color:var(--muted);font-style:italic;}
+.timestamp{text-align:center;font-size:9px;color:var(--muted);letter-spacing:0.1em;padding:8px;margin-bottom:16px;}
+.timestamp span{color:var(--accent);}
+.loading{text-align:center;padding:60px;color:var(--muted);font-size:11px;letter-spacing:0.2em;}
+.error{background:rgba(255,51,102,0.08);border:1px solid rgba(255,51,102,0.25);padding:14px;color:var(--red);font-size:11px;margin-bottom:16px;}
+</style>
+</head>
+<body style="opacity:0">
+<div class="scanlines"></div>
+<div class="corner corner-tl"></div><div class="corner corner-tr"></div><div class="corner corner-bl"></div><div class="corner corner-br"></div>
+<button id="theme-toggle" title="Toggle light/dark mode">☀️</button>
+<div class="header">
+  <h1>HawkEYE</h1>
+  <div class="subtitle">THREAT SHIELD — FAIL2BAN STATUS</div>
+  <div class="live-badge"><div class="pulse-dot"></div>ACTIVE DEFENCE</div>
+</div>
+<nav>
+  <a href="/" class="nav-btn" onclick="navigate(event,this)">⬡ Traffic Map</a>
+  <a href="/fail2ban.html" class="nav-btn active" onclick="navigate(event,this)">🛡 Threat Shield</a>
+</nav>
+<div class="container">
+  <div class="timestamp">Last updated: <span id="update-time">—</span> · Auto-refreshes every 60s</div>
+  <div id="content"><div class="loading">LOADING THREAT DATA…</div></div>
+</div>
+<script>
+requestAnimationFrame(()=>requestAnimationFrame(()=>{document.body.style.opacity=1;}));
+function navigate(e,el){e.preventDefault();document.body.style.opacity=0;setTimeout(()=>window.location.href=el.href,300);}
+let isLight=localStorage.getItem('nw-theme')==='light';
+function applyTheme(){document.body.classList.toggle('light',isLight);document.getElementById('theme-toggle').textContent=isLight?'🌙':'☀️';}
+document.getElementById('theme-toggle').addEventListener('click',()=>{isLight=!isLight;localStorage.setItem('nw-theme',isLight?'light':'dark');applyTheme();});
+applyTheme();
+async function loadData(){
+  try{
+    const res=await fetch('/api/fail2ban');
+    if(!res.ok)throw new Error('API error '+res.status);
+    const data=await res.json();
+    render(data);
+  }catch(e){
+    document.getElementById('content').innerHTML='<div class="error">⚠ Could not load Fail2Ban data: '+e.message+'</div>';
+  }
+  document.getElementById('update-time').textContent=new Date().toLocaleTimeString();
+}
+function render(data){
+  const gdprMode=data.gdprMode!==undefined?data.gdprMode:true;
+  const jails=data.jails||[];
+  const totalBanned=jails.reduce((a,j)=>a+(j.currentlyBanned||0),0);
+  const totalEver=jails.reduce((a,j)=>a+(j.totalBanned||0),0);
+  const totalFailed=jails.reduce((a,j)=>a+(j.totalFailed||0),0);
+  let html=`
+    <div class="summary-grid">
+      <div class="stat-block red"><div class="stat-label">Currently Banned</div><div class="stat-value">${totalBanned}</div><div class="stat-sub">active blocks</div></div>
+      <div class="stat-block warn"><div class="stat-label">Total Banned</div><div class="stat-value">${totalEver}</div><div class="stat-sub">since service start</div></div>
+      <div class="stat-block blue"><div class="stat-label">Total Failed</div><div class="stat-value">${totalFailed}</div><div class="stat-sub">auth attempts</div></div>
+      <div class="stat-block"><div class="stat-label">Active Jails</div><div class="stat-value">${jails.length}</div><div class="stat-sub">monitoring rules</div></div>
+    </div>
+    <div class="section-title">Jail Status</div>
+    <div class="jail-grid">`;
+  jails.forEach(jail=>{
+    const hasBans=jail.currentlyBanned>0;
+    const ipSection=(!gdprMode&&jail.bannedIPs&&jail.bannedIPs.length)
+      ?`<div class="ip-list"><div class="ip-list-title">BANNED IPs</div>${jail.bannedIPs.map(ip=>`<span class="ip-tag">${ip}</span>`).join('')}</div>`
+      :`<div class="no-bans">${hasBans?jail.currentlyBanned+' active ban(s)':'No active bans'}</div>`;
+    html+=`
+      <div class="jail-card">
+        <div class="jail-header">
+          <div class="jail-name">${jail.name}</div>
+          <div class="jail-badge ${hasBans?'':'safe'}">${hasBans?jail.currentlyBanned+' BANNED':'CLEAR'}</div>
+        </div>
+        <div class="jail-stats">
+          <div class="jail-stat"><div class="jail-stat-label">Currently Banned</div><div class="jail-stat-value ${hasBans?'red':''}">${jail.currentlyBanned}</div></div>
+          <div class="jail-stat"><div class="jail-stat-label">Total Banned</div><div class="jail-stat-value">${jail.totalBanned}</div></div>
+          <div class="jail-stat"><div class="jail-stat-label">Currently Failed</div><div class="jail-stat-value">${jail.currentlyFailed}</div></div>
+          <div class="jail-stat"><div class="jail-stat-label">Total Failed</div><div class="jail-stat-value">${jail.totalFailed}</div></div>
+        </div>
+        ${ipSection}
+      </div>`;
+  });
+  html+='</div>';
+  document.getElementById('content').innerHTML=html;
+}
+loadData();
+setInterval(loadData,60000);
+</script>
+</body>
+</html>

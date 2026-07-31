@@ -1,0 +1,37 @@
+services:
+  backend:
+    build: ./backend
+    container_name: hawkeye-backend
+    restart: unless-stopped
+    user: root
+    volumes:
+      - /var/log/caddy:/logs:ro                                         # Caddy access logs (read-only)
+      - /var/run/fail2ban/fail2ban.sock:/run/fail2ban/fail2ban.sock     # Fail2Ban socket
+    environment:
+      PORT: 3001
+      CADDY_LOG_FILE: /logs/access.log
+      SERVER_LAT: 51.5074       # Your server's latitude
+      SERVER_LON: -0.1278       # Your server's longitude
+      SERVER_CITY: "My Server"  # Display name shown on the map
+      GDPR_MODE: "true"         # true = hide IPs (recommended for public deployments)
+                                # false = show full IPs in feed, tooltip, and Threat Shield
+    networks:
+      - hawkeye-net
+
+  frontend:
+    image: nginx:alpine
+    container_name: hawkeye-frontend
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    networks:
+      - hawkeye-net
+    ports:
+      - "127.0.0.1:8080:80"    # Only bind to localhost — Caddy proxies this
+
+networks:
+  hawkeye-net:
+    driver: bridge
